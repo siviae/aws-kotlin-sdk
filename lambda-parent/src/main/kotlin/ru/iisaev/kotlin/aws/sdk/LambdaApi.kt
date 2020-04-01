@@ -2,25 +2,10 @@ package ru.iisaev.kotlin.aws.sdk
 
 import com.amazonaws.services.lambda.runtime.*
 import kotlinx.coroutines.runBlocking
-import software.amazon.awssdk.http.async.SdkAsyncHttpClient
-import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTimedValue
 
-interface AwsClient {
-    val httpClient: SdkAsyncHttpClient
-}
-
-object AwsClientSingleton : AwsClient {
-    override val httpClient: SdkAsyncHttpClient by lazy {
-        NettyNioAsyncHttpClient
-                .builder()
-                .build()
-    }
-}
-
-abstract class LambdaHandler<I, O>(protected val context: Context,
-                                   private val client: AwsClient) : AwsClient by client {
+abstract class LambdaHandler<I, O>(protected val context: Context) {
 
     fun log(message: String) = context.logger.log(message)
 
@@ -28,9 +13,9 @@ abstract class LambdaHandler<I, O>(protected val context: Context,
 }
 
 abstract class LambdaRequestHandlerFactory<I, O>
-    : RequestHandler<I, O>, AwsClient by AwsClientSingleton {
+    : RequestHandler<I, O> {
 
-    abstract fun getHandler(context: Context, awsClient: AwsClient): LambdaHandler<I, O>
+    abstract fun getHandler(context: Context): LambdaHandler<I, O>
 
     @ExperimentalTime
     override fun handleRequest(input: I, context: Context): O? {
@@ -40,7 +25,7 @@ abstract class LambdaRequestHandlerFactory<I, O>
         } else {
             measureTimedValue {
                 runBlocking {
-                    getHandler(context, AwsClientSingleton).handle(input)
+                    getHandler(context).handle(input)
                 }
             }.let { (result, requestTime) ->
                 context.logger.log("Finished function execution in $requestTime")
