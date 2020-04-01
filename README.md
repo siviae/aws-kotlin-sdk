@@ -1,2 +1,2 @@
 # aws-kotlin-sdk
-Kotlin extensions for AWS Java SDK v2 SDK
+Kotlin extensions for AWS Java v2 SDK
