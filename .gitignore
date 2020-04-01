@@ -21,3 +21,11 @@
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+.idea/
+aws-kotlin-sdk.iml
+athena/aws-kotlin-sdk-athena.iml
+common/aws-kotlin-sdk-common.iml
+dynamodb/aws-kotlin-sdk-dynamodb.iml
+lambda-parent/aws-kotlin-sdk-lambda-parent.iml
+s3/aws-kotlin-sdk-s3.iml
+ses/aws-kotlin-sdk-ses.iml
