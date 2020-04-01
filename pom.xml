@@ -49,6 +49,7 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>netty-nio-client</artifactId>
             <version>${aws.sdk.version}</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 
@@ -67,6 +68,13 @@
             <url>https://repo.maven.apache.org/maven2</url>
         </repository>
     </repositories>
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub OWNER Apache Maven Packages</name>
+            <url>https://maven.pkg.github.com/isae/aws-kotlin-sdk</url>
+        </repository>
+    </distributionManagement>
 
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
