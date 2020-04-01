@@ -16,7 +16,7 @@ import java.util.concurrent.ConcurrentHashMap
 suspend fun S3AsyncClient.listObjectsAsync(rq: (ListObjectsV2Request.Builder) -> Unit): Flow<S3Object> = flow {
     var nextToken: String? = null
     do {
-        val result = listObjectsV2 { it.also(rq).continuationToken(nextToken).maxKeys(5000) }.await()
+        val result = listObjectsV2 { it.continuationToken(nextToken).maxKeys(5000).applyMutation(rq) }.await()
         result.contents().forEach { emit(it) }
         nextToken = result.nextContinuationToken()
     } while (nextToken != null)

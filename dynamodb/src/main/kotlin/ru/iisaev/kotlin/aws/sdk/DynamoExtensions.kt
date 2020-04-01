@@ -29,20 +29,20 @@ fun Iterable<String>.asDynamoAttr() = dynamoAttr { builder -> builder.ss(this.ma
 fun Iterable<Number>.asDynamoAttr() = dynamoAttr { builder -> builder.ns(this.map { it.toString() }.toList()) }
 
 @ExperimentalCoroutinesApi
-fun DynamoDbAsyncClient.asyncQuery(rq: (QueryRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
+fun DynamoDbAsyncClient.queryAsync(rq: (QueryRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
     var nextToken: Map<String, AttributeValue>? = null
     do {
-        val result = query { it.exclusiveStartKey(nextToken).limit(1000).also(rq) }.await()
+        val result = query { it.exclusiveStartKey(nextToken).limit(1000).applyMutation(rq) }.await()
         result.items().forEach { emit(it) }
         nextToken = if (result.hasLastEvaluatedKey()) result.lastEvaluatedKey() else null
     } while (nextToken != null)
 }.flowOn(kotlinx.coroutines.Dispatchers.IO)
 
 @ExperimentalCoroutinesApi
-fun DynamoDbAsyncClient.asyncScan(rq: (ScanRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
+fun DynamoDbAsyncClient.scanAsync(rq: (ScanRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
     var nextToken: Map<String, AttributeValue>? = null
     do {
-        val result = scan { it.exclusiveStartKey(nextToken).limit(1000).also(rq) }.await()
+        val result = scan { it.exclusiveStartKey(nextToken).limit(1000).applyMutation(rq) }.await()
         result.items().forEach { emit(it) }
         nextToken = if (result.hasLastEvaluatedKey()) result.lastEvaluatedKey() else null
     } while (nextToken != null)

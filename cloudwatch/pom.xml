@@ -7,12 +7,12 @@
         <artifactId>parent-pom</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
-    <artifactId>s3</artifactId>
+    <artifactId>cloudwatch</artifactId>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3</artifactId>
+            <artifactId>cloudwatch</artifactId>
             <version>${aws.sdk.version}</version>
             <scope>provided</scope>
         </dependency>

@@ -1,7 +1,7 @@
 package ru.iisaev.kotlin.aws.sdk
 
 import com.amazonaws.services.lambda.runtime.*
-import kotlinx.coroutines.*
+import kotlinx.coroutines.runBlocking
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient
 import kotlin.time.ExperimentalTime

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -18,6 +18,18 @@
         <kotlinx.serialization.version>0.20.0</kotlinx.serialization.version>
         <kotlin.compiler.incremental>true</kotlin.compiler.incremental>
     </properties>
+
+    <modules>
+        <module>athena</module>
+        <module>common</module>
+        <module>dynamodb</module>
+        <module>lambda-parent</module>
+        <module>s3</module>
+        <module>ses</module>
+        <module>ec2</module>
+        <module>lambda</module>
+        <module>cloudwatch</module>
+    </modules>
 
     <dependencies>
         <dependency>
@@ -52,15 +64,6 @@
             <scope>provided</scope>
         </dependency>
     </dependencies>
-
-    <modules>
-        <module>athena</module>
-        <module>common</module>
-        <module>dynamodb</module>
-        <module>lambda-parent</module>
-        <module>s3</module>
-        <module>ses</module>
-    </modules>
 
     <repositories>
         <repository>
