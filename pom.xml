@@ -20,8 +20,8 @@
     </properties>
 
     <modules>
+        <module>util</module>
         <module>athena</module>
-        <module>common</module>
         <module>dynamodb</module>
         <module>lambda-parent</module>
         <module>s3</module>

@@ -13,17 +13,13 @@ import software.amazon.awssdk.core.exception.SdkServiceException
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.athena.AthenaAsyncClient
+import software.amazon.awssdk.services.athena.AthenaAsyncClientBuilder
 import software.amazon.awssdk.services.athena.model.QueryExecutionState
 import software.amazon.awssdk.services.athena.model.QueryExecutionStatus
 import software.amazon.awssdk.services.athena.model.Row
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
-
-private val clientByRegion by lazy { ConcurrentHashMap<Region, AthenaAsyncClient>() }
-fun SdkAsyncHttpClient.athena(region: Region) = clientByRegion.computeIfAbsent(region) {
-    AthenaAsyncClient.builder().httpClient(this).region(it).build()
-}
 
 data class AthenaConfig(
         val client: AthenaAsyncClient,
@@ -110,3 +106,15 @@ suspend fun waitForFinish(config: AthenaConfig,
         throw IllegalStateException("Invalid query status ${status.state()} due to ${status.stateChangeReason()}")
     }
 }
+
+class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient) {
+
+}
+
+private val clientByRegion by lazy { ConcurrentHashMap<Region, AthenaAsyncKlient>() }
+fun SdkAsyncHttpClient.athena(region: Region,
+                              builder: (AthenaAsyncClientBuilder) -> Unit = {}) =
+        clientByRegion.computeIfAbsent(region) {
+            AthenaAsyncClient.builder().httpClient(this).region(region).applyMutation(builder).build()
+                    .let { AthenaAsyncKlient(it) }
+        }
