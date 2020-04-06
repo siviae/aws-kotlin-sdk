@@ -1,3 +1,5 @@
+@file:Suppress("MemberVisibilityCanBePrivate")
+
 package ru.iisaev.kotlin.aws.sdk
 
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient

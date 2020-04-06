@@ -1,3 +1,4 @@
+@file:Suppress("MemberVisibilityCanBePrivate")
 package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.Dispatchers
