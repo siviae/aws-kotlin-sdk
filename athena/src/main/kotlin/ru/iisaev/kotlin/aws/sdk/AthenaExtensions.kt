@@ -21,8 +21,9 @@ import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
 
+//TODO merge with AthenaAsyncKlient
 data class AthenaConfig(
-        val client: AthenaAsyncClient,
+        val client: AthenaAsyncKlient,
         val workGroup: String,
         val queryBatchSize: Int = 1000,
         val waitDelaySeed: Long = 500L,
@@ -65,19 +66,20 @@ private suspend fun <T> throttle(config: AthenaConfig,
 
 
 suspend fun String.runInAthenaAsync(config: AthenaConfig) = config.let { athena ->
-    throttle(config) { athena.client.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await().queryExecutionId() }
+    throttle(config) { athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await().queryExecutionId() }
 }
 
 @ExperimentalCoroutinesApi
 suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Flow<T> = config.let { athena ->
-    val executionId = throttle(config) { athena.client.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await().queryExecutionId() }
+    val executionId = throttle(config) { athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await()
+            .queryExecutionId() }
     throttle(config) { waitForFinish(athena, executionId) }
     var nextToken: String? = null
     var last = false
     return flow {
         if (!last) {
             val results = throttle(config) {
-                athena.client.getQueryResults {
+                athena.client.nativeClient.getQueryResults {
                     it
                             .queryExecutionId(executionId)
                             .nextToken(nextToken)
@@ -98,7 +100,7 @@ suspend fun waitForFinish(config: AthenaConfig,
     var status: QueryExecutionStatus
     val delaySeq = generateSequence(athena.waitDelaySeed, athena.waitDelayFunction).iterator()
     do {
-        val future = athena.client.getQueryExecution { it.queryExecutionId(queryExecutionId) }
+        val future = athena.client.nativeClient.getQueryExecution { it.queryExecutionId(queryExecutionId) }
         status = future.await().queryExecution().status()
         delay(delaySeq.next())
     } while (status.state() == QueryExecutionState.RUNNING || status.state() == QueryExecutionState.QUEUED)
