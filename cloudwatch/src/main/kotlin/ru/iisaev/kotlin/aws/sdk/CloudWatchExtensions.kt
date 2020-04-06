@@ -182,6 +182,7 @@ class CloudWatchAsyncKlient(val nativeClient: CloudWatchAsyncClient) {
     }
 }
 
+@ExperimentalCoroutinesApi
 private val clientByRegion by lazy { ConcurrentHashMap<Region, CloudWatchAsyncKlient>() }
 
 @ExperimentalCoroutinesApi
