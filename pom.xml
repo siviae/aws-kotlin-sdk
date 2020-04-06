@@ -23,7 +23,6 @@
         <module>util</module>
         <module>athena</module>
         <module>dynamodb</module>
-        <module>lambda-parent</module>
         <module>s3</module>
         <module>ses</module>
         <module>ec2</module>

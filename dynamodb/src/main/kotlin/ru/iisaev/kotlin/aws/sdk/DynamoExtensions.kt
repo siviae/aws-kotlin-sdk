@@ -1,5 +1,4 @@
-@file:Suppress("MemberVisibilityCanBePrivate")
-
+@file:Suppress("MemberVisibilityCanBePrivate", "unused")
 package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
