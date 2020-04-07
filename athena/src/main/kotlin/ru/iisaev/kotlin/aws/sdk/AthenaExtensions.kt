@@ -1,4 +1,5 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
+
 package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +32,8 @@ data class AthenaConfig(
         val waitDelayFunction: (Long) -> Long = { it * 2 },
         val throttleDelaySeed: Long = 200L,
         val throttleDelayFunction: (Long) -> Long = { it * 2 },
-        val maxThrottles: Int = Int.MAX_VALUE
+        val maxThrottles: Int = Int.MAX_VALUE,
+        val debugMode: Boolean = false
 )
 
 private val mutex = Mutex()
@@ -72,8 +74,14 @@ suspend fun String.runInAthenaAsync(config: AthenaConfig) = config.let { athena 
 
 @ExperimentalCoroutinesApi
 suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Flow<T> = config.let { athena ->
-    val executionId = throttle(config) { athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await()
-            .queryExecutionId() }
+    val string = this
+    val executionId = throttle(config) {
+        athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
+                .queryExecutionId()
+    }
+    if (config.debugMode) {
+        println("Started $string")
+    }
     throttle(config) { waitForFinish(athena, executionId) }
     var nextToken: String? = null
     var last = false
@@ -91,6 +99,9 @@ suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Fl
             last = (nextToken == null)
             results.resultSet().rows()
                     .forEach { emit(mapper(it)) }
+        }
+        if (config.debugMode) {
+            println("Finished $string")
         }
     }.flowOn(Dispatchers.IO)
 }

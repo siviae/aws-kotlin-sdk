@@ -18,10 +18,11 @@ import java.util.concurrent.ConcurrentHashMap
 
 @ExperimentalCoroutinesApi
 class LambdaAsyncKlient(val nativeClient: LambdaAsyncClient) {
-    suspend fun listFunctions(rq: (ListFunctionsRequest.Builder) -> Unit): Flow<FunctionConfiguration> = flow {
+    suspend fun listFunctions(batchSize: Int = 5000,
+                              builder: (ListFunctionsRequest.Builder) -> Unit = {}): Flow<FunctionConfiguration> = flow {
         var nextToken: String? = null
         do {
-            val result = nativeClient.listFunctions() { it.marker(nextToken).maxItems(5000).applyMutation(rq) }.await()
+            val result = nativeClient.listFunctions() { it.marker(nextToken).maxItems(batchSize).applyMutation(builder) }.await()
             result.functions().forEach { emit(it) }
             nextToken = result.nextMarker()
         } while (nextToken != null)

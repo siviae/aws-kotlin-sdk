@@ -17,10 +17,11 @@ import java.util.concurrent.ConcurrentHashMap
 
 @ExperimentalCoroutinesApi
 class S3AsyncKlient(val nativeClient: S3AsyncClient) {
-    suspend fun listObjects(rq: (ListObjectsV2Request.Builder) -> Unit): Flow<S3Object> = flow {
+    suspend fun listObjects(batchSize: Int = 5000,
+                            builder: (ListObjectsV2Request.Builder) -> Unit): Flow<S3Object> = flow {
         var nextToken: String? = null
         do {
-            val result = nativeClient.listObjectsV2 { it.continuationToken(nextToken).maxKeys(5000).applyMutation(rq) }.await()
+            val result = nativeClient.listObjectsV2 { it.continuationToken(nextToken).maxKeys(batchSize).applyMutation(builder) }.await()
             result.contents().forEach { emit(it) }
             nextToken = result.nextContinuationToken()
         } while (nextToken != null)

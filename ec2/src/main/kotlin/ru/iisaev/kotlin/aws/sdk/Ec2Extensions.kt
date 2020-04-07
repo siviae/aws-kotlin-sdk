@@ -21,20 +21,22 @@ import java.util.concurrent.ConcurrentHashMap
 @ExperimentalCoroutinesApi
 class Ec2AsyncKlient(val nativeClient: Ec2AsyncClient) {
 
-    suspend fun describeInstances(rq: (DescribeInstancesRequest.Builder) -> Unit): Flow<Reservation> = flow {
+    suspend fun describeInstances(batchSize: Int = 5000,
+                                  builder: (DescribeInstancesRequest.Builder) -> Unit = {}): Flow<Reservation> = flow {
         var nextToken: String? = null
         do {
-            val result = nativeClient.describeInstances() { it.nextToken(nextToken).maxResults(5000).applyMutation(rq) }.await()
+            val result = nativeClient.describeInstances() { it.nextToken(nextToken).maxResults(batchSize).applyMutation(builder) }.await()
             result.reservations().forEach { emit(it) }
             nextToken = result.nextToken()
         } while (nextToken != null)
     }.flowOn(Dispatchers.IO)
 
 
-    suspend fun describeVolumes(rq: (DescribeVolumesRequest.Builder) -> Unit): Flow<Volume> = flow {
+    suspend fun describeVolumes(batchSize: Int = 5000,
+                                builder: (DescribeVolumesRequest.Builder) -> Unit = {}): Flow<Volume> = flow {
         var nextToken: String? = null
         do {
-            val result = nativeClient.describeVolumes() { it.nextToken(nextToken).maxResults(5000).applyMutation(rq) }.await()
+            val result = nativeClient.describeVolumes() { it.nextToken(nextToken).maxResults(batchSize).applyMutation(builder) }.await()
             result.volumes().forEach { emit(it) }
             nextToken = result.nextToken()
         } while (nextToken != null)

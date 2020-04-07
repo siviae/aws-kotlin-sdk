@@ -1,4 +1,5 @@
 @file:Suppress("MemberVisibilityCanBePrivate", "unused")
+
 package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,20 +33,22 @@ fun Iterable<Number>.asDynamoAttr() = dynamoAttr { builder -> builder.ns(this.ma
 
 @ExperimentalCoroutinesApi
 class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
-    fun query(rq: (QueryRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
+    fun query(batchSize: Int = 1000,
+              builder: (QueryRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
         var nextToken: Map<String, AttributeValue>? = null
         do {
-            val result = nativeClient.query { it.exclusiveStartKey(nextToken).limit(1000).applyMutation(rq) }.await()
+            val result = nativeClient.query { it.exclusiveStartKey(nextToken).limit(batchSize).applyMutation(builder) }.await()
             result.items().forEach { emit(it) }
             nextToken = if (result.hasLastEvaluatedKey()) result.lastEvaluatedKey() else null
         } while (nextToken != null)
     }.flowOn(kotlinx.coroutines.Dispatchers.IO)
 
 
-    fun scan(rq: (ScanRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
+    fun scan(batchSize: Int = 1000,
+             builder: (ScanRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> = flow {
         var nextToken: Map<String, AttributeValue>? = null
         do {
-            val result = nativeClient.scan { it.exclusiveStartKey(nextToken).limit(1000).applyMutation(rq) }.await()
+            val result = nativeClient.scan { it.exclusiveStartKey(nextToken).limit(batchSize).applyMutation(builder) }.await()
             result.items().forEach { emit(it) }
             nextToken = if (result.hasLastEvaluatedKey()) result.lastEvaluatedKey() else null
         } while (nextToken != null)
