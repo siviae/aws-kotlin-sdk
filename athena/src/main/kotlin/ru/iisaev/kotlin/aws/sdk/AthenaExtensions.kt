@@ -36,6 +36,12 @@ data class AthenaConfig(
         val debugMode: Boolean = false
 )
 
+private fun AthenaConfig.debug(action: () -> Unit) {
+    if (debugMode) {
+        action()
+    }
+}
+
 private val mutex = Mutex()
 
 //TODO shall we revise it according to Per Account API Call Quotas?
@@ -48,6 +54,7 @@ private suspend fun <T> throttle(config: AthenaConfig,
     } catch (e: SdkServiceException) {
         if (e.isThrottlingException) {
             if (throttled > 0) {
+                config.debug { println("Throttled in mutex: $throttled") }
                 if (throttled > config.maxThrottles) {
                     throw IllegalStateException("Too long throttling for the query ($throttled times), try again later")
                 } else {
@@ -79,9 +86,7 @@ suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Fl
         athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
                 .queryExecutionId()
     }
-    if (config.debugMode) {
-        println("Started $string")
-    }
+    config.debug { println("Started $string") }
     throttle(config) { waitForFinish(athena, executionId) }
     var nextToken: String? = null
     var last = false
@@ -100,22 +105,26 @@ suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Fl
             results.resultSet().rows()
                     .forEach { emit(mapper(it)) }
         }
-        if (config.debugMode) {
-            println("Finished $string")
-        }
+        config.debug { println("Finished $string") }
     }.flowOn(Dispatchers.IO)
 }
 
 @Throws(IllegalStateException::class)
 suspend fun waitForFinish(config: AthenaConfig,
                           queryExecutionId: String) = config.let { athena ->
-    var status: QueryExecutionStatus
+    var status = QueryExecutionStatus.builder().state(QueryExecutionState.QUEUED).build()
     val delaySeq = generateSequence(athena.waitDelaySeed, athena.waitDelayFunction).iterator()
-    do {
+    var firstTime = true
+    while (status.state() == QueryExecutionState.RUNNING || status.state() == QueryExecutionState.QUEUED) {
+        val delay = delaySeq.next()
+        if (!firstTime) {
+            config.debug { println("Query $queryExecutionId is still running, waiting for ${Duration.ofMillis(delay)}") }
+        }
+        delay(delay)
         val future = athena.client.nativeClient.getQueryExecution { it.queryExecutionId(queryExecutionId) }
         status = future.await().queryExecution().status()
-        delay(delaySeq.next())
-    } while (status.state() == QueryExecutionState.RUNNING || status.state() == QueryExecutionState.QUEUED)
+        firstTime = false
+    }
     if (status.state() != QueryExecutionState.SUCCEEDED) {
         throw IllegalStateException("Invalid query status ${status.state()} due to ${status.stateChangeReason()}")
     }
