@@ -8,6 +8,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
@@ -17,15 +18,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 @ExperimentalCoroutinesApi
 class S3AsyncKlient(val nativeClient: S3AsyncClient) {
-    suspend fun listObjects(batchSize: Int = 5000,
-                            builder: (ListObjectsV2Request.Builder) -> Unit): Flow<S3Object> = flow {
-        var nextToken: String? = null
-        do {
-            val result = nativeClient.listObjectsV2 { it.continuationToken(nextToken).maxKeys(batchSize).applyMutation(builder) }.await()
-            result.contents().forEach { emit(it) }
-            nextToken = result.nextContinuationToken()
-        } while (nextToken != null)
-    }.flowOn(Dispatchers.IO)
+    suspend fun listObjects(builder: (ListObjectsV2Request.Builder) -> Unit): Flow<S3Object> =
+            nativeClient.listObjectsV2Paginator(builder).contents().asFlow()
 
 
     suspend fun deleteFileOrDirectoryAsync(bucket: String, path: String): Deferred<DeleteObjectResponse> {
@@ -53,6 +47,6 @@ private val clientByRegion by lazy { ConcurrentHashMap<Region, S3AsyncKlient>() 
 fun SdkAsyncHttpClient.s3(region: Region,
                           builder: (S3AsyncClientBuilder) -> Unit = {}) =
         clientByRegion.computeIfAbsent(region) {
-            S3AsyncClient.builder().httpClient(this).region(region).applyMutation(builder).build()
+            S3AsyncClient.builder().httpClient(this).region(region).also(builder).build()
                     .let { S3AsyncKlient(it) }
         }

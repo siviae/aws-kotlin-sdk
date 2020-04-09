@@ -14,6 +14,6 @@ private val clientByRegion by lazy { ConcurrentHashMap<Region, SesAsyncKlient>()
 fun SdkAsyncHttpClient.ses(region: Region,
                            builder: (SesAsyncClientBuilder) -> Unit = {}) =
         clientByRegion.computeIfAbsent(region) {
-            SesAsyncClient.builder().httpClient(this).region(region).applyMutation(builder).build()
+            SesAsyncClient.builder().httpClient(this).region(region).also(builder).build()
                     .let { SesAsyncKlient(it) }
         }

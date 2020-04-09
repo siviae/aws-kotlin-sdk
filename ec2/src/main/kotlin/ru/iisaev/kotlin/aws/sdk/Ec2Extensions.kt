@@ -2,12 +2,9 @@
 
 package ru.iisaev.kotlin.aws.sdk
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.future.await
+import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.ec2.Ec2AsyncClient
@@ -21,26 +18,12 @@ import java.util.concurrent.ConcurrentHashMap
 @ExperimentalCoroutinesApi
 class Ec2AsyncKlient(val nativeClient: Ec2AsyncClient) {
 
-    suspend fun describeInstances(batchSize: Int = 5000,
-                                  builder: (DescribeInstancesRequest.Builder) -> Unit = {}): Flow<Reservation> = flow {
-        var nextToken: String? = null
-        do {
-            val result = nativeClient.describeInstances() { it.nextToken(nextToken).maxResults(batchSize).applyMutation(builder) }.await()
-            result.reservations().forEach { emit(it) }
-            nextToken = result.nextToken()
-        } while (nextToken != null)
-    }.flowOn(Dispatchers.IO)
+    fun describeInstances(builder: (DescribeInstancesRequest.Builder) -> Unit = {}): Flow<Reservation> =
+            nativeClient.describeInstancesPaginator(builder).reservations().asFlow()
 
 
-    suspend fun describeVolumes(batchSize: Int = 5000,
-                                builder: (DescribeVolumesRequest.Builder) -> Unit = {}): Flow<Volume> = flow {
-        var nextToken: String? = null
-        do {
-            val result = nativeClient.describeVolumes() { it.nextToken(nextToken).maxResults(batchSize).applyMutation(builder) }.await()
-            result.volumes().forEach { emit(it) }
-            nextToken = result.nextToken()
-        } while (nextToken != null)
-    }.flowOn(Dispatchers.IO)
+    fun describeVolumes(builder: (DescribeVolumesRequest.Builder) -> Unit = {}): Flow<Volume> =
+            nativeClient.describeVolumesPaginator(builder).volumes().asFlow()
 }
 
 private val clientByRegion by lazy { ConcurrentHashMap<Region, Ec2AsyncKlient>() }
@@ -49,7 +32,7 @@ private val clientByRegion by lazy { ConcurrentHashMap<Region, Ec2AsyncKlient>()
 fun SdkAsyncHttpClient.ec2(region: Region,
                            builder: (Ec2AsyncClientBuilder) -> Unit = {}) =
         clientByRegion.computeIfAbsent(region) {
-            Ec2AsyncClient.builder().httpClient(this).region(region).applyMutation(builder).build()
+            Ec2AsyncClient.builder().httpClient(this).region(region).also(builder).build()
                     .let { Ec2AsyncKlient(it) }
         }
 

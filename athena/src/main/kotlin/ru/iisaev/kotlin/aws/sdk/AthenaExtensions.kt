@@ -8,7 +8,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.future.await
+import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import software.amazon.awssdk.core.exception.SdkServiceException
@@ -16,9 +18,7 @@ import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.athena.AthenaAsyncClient
 import software.amazon.awssdk.services.athena.AthenaAsyncClientBuilder
-import software.amazon.awssdk.services.athena.model.QueryExecutionState
-import software.amazon.awssdk.services.athena.model.QueryExecutionStatus
-import software.amazon.awssdk.services.athena.model.Row
+import software.amazon.awssdk.services.athena.model.*
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
@@ -80,7 +80,7 @@ suspend fun String.runInAthenaAsync(config: AthenaConfig) = config.let { athena 
 }
 
 @ExperimentalCoroutinesApi
-suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Flow<T> = config.let { athena ->
+suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: suspend (List<Datum>) -> T): Flow<T> = config.let { athena ->
     val string = this
     val executionId = throttle(config) {
         athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
@@ -90,23 +90,8 @@ suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (Row) -> T): Fl
     throttle(config) { waitForFinish(athena, executionId) }
     var nextToken: String? = null
     var last = false
-    return flow {
-        if (!last) {
-            val results = throttle(config) {
-                athena.client.nativeClient.getQueryResults {
-                    it
-                            .queryExecutionId(executionId)
-                            .nextToken(nextToken)
-                            .maxResults(athena.queryBatchSize)
-                }.await()
-            }
-            nextToken = results.nextToken()
-            last = (nextToken == null)
-            results.resultSet().rows()
-                    .forEach { emit(mapper(it)) }
-        }
-        config.debug { println("Finished $string") }
-    }.flowOn(Dispatchers.IO)
+    config.debug { println("Finished $string") }
+    return athena.client.getQueryResults { it.queryExecutionId(executionId) }.map(mapper)
 }
 
 @Throws(IllegalStateException::class)
@@ -131,13 +116,101 @@ suspend fun waitForFinish(config: AthenaConfig,
 }
 
 class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient) {
+    suspend fun batchGetNamedQuery(builder: (BatchGetNamedQueryRequest.Builder) -> Unit): BatchGetNamedQueryResponse {
+        return nativeClient.batchGetNamedQuery(builder).await()
+    }
 
+    suspend fun batchGetQueryExecution(builder: (BatchGetQueryExecutionRequest.Builder) -> Unit): BatchGetQueryExecutionResponse {
+        return nativeClient.batchGetQueryExecution(builder).await()
+    }
+
+    suspend fun createNamedQuery(builder: (CreateNamedQueryRequest.Builder) -> Unit): String {
+        return nativeClient.createNamedQuery(builder).await().namedQueryId()
+    }
+
+    suspend fun createWorkGroup(builder: (CreateWorkGroupRequest.Builder) -> Unit) {
+        nativeClient.createWorkGroup(builder).await()
+    }
+
+    suspend fun deleteNamedQuery(builder: (DeleteNamedQueryRequest.Builder) -> Unit) {
+        nativeClient.deleteNamedQuery(builder).await()
+    }
+
+    suspend fun deleteWorkGroup(builder: (DeleteWorkGroupRequest.Builder) -> Unit) {
+        nativeClient.deleteWorkGroup(builder).await()
+    }
+
+    suspend fun getNamedQuery(builder: (GetNamedQueryRequest.Builder) -> Unit): NamedQuery {
+        return nativeClient.getNamedQuery(builder).await().namedQuery()
+    }
+
+    suspend fun getQueryExecution(builder: (GetQueryExecutionRequest.Builder) -> Unit): QueryExecution {
+        return nativeClient.getQueryExecution(builder).await().queryExecution()
+    }
+
+    suspend fun getUpdateCount(builder: (GetQueryResultsRequest.Builder) -> Unit): Long {
+        return nativeClient.getQueryResults(builder).await().updateCount()
+    }
+
+    fun getQueryResults(builder: (GetQueryResultsRequest.Builder) -> Unit): Flow<List<Datum>> {
+        return nativeClient.getQueryResultsPaginator(builder)
+                .flatMapIterable { it.resultSet().rows() ?: emptyList() }
+                .filter { it.hasData() }
+                .map { it.data() }
+                .asFlow()
+    }
+
+    suspend fun getWorkGroup(builder: (GetWorkGroupRequest.Builder) -> Unit): WorkGroup {
+        return nativeClient.getWorkGroup(builder).await().workGroup()
+    }
+
+    fun listNamedQueries(builder: (ListNamedQueriesRequest.Builder) -> Unit): Flow<String> =
+            nativeClient.listNamedQueriesPaginator(builder).flatMapIterable { it.namedQueryIds() ?: emptyList() }.asFlow()
+
+    fun listQueryExecutions(builder: (ListQueryExecutionsRequest.Builder) -> Unit): Flow<String> =
+            nativeClient.listQueryExecutionsPaginator(builder).flatMapIterable { it.queryExecutionIds() ?: emptyList() }.asFlow()
+
+    suspend fun listTagsForResource(builder: (ListTagsForResourceRequest.Builder) -> Unit): Map<String, String> {
+        val result = HashMap<String, String>()
+        var nextToken: String? = null
+        do {
+            val rs = nativeClient.listTagsForResource() {
+                it.nextToken(nextToken).maxResults(50).also(builder)
+            }.await()
+            rs.tags()?.forEach { result[it.key()] = it.value() }
+            nextToken = rs.nextToken()
+        } while (nextToken != null)
+        return result
+    }
+
+    fun listWorkGroups(builder: (ListWorkGroupsRequest.Builder) -> Unit): Flow<WorkGroupSummary> =
+            nativeClient.listWorkGroupsPaginator(builder).flatMapIterable { it.workGroups() ?: emptyList() }.asFlow()
+
+    suspend fun startQueryExecution(builder: (StartQueryExecutionRequest.Builder) -> Unit): String {
+        return nativeClient.startQueryExecution(builder).await().queryExecutionId()
+    }
+
+    suspend fun stopQueryExecution(builder: (StopQueryExecutionRequest.Builder) -> Unit) {
+        nativeClient.stopQueryExecution(builder).await()
+    }
+
+    suspend fun tagResource(builder: (TagResourceRequest.Builder) -> Unit) {
+        nativeClient.tagResource(builder).await()
+    }
+
+    suspend fun untagResource(builder: (UntagResourceRequest.Builder) -> Unit) {
+        nativeClient.untagResource(builder).await()
+    }
+
+    suspend fun updateWorkGroup(builder: (UpdateWorkGroupRequest.Builder) -> Unit) {
+        nativeClient.updateWorkGroup(builder).await()
+    }
 }
 
 private val clientByRegion by lazy { ConcurrentHashMap<Region, AthenaAsyncKlient>() }
 fun SdkAsyncHttpClient.athena(region: Region,
                               builder: (AthenaAsyncClientBuilder) -> Unit = {}) =
         clientByRegion.computeIfAbsent(region) {
-            AthenaAsyncClient.builder().httpClient(this).region(region).applyMutation(builder).build()
+            AthenaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
                     .let { AthenaAsyncKlient(it) }
         }
