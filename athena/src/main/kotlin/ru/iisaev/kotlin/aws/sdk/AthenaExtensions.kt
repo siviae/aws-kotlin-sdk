@@ -2,12 +2,10 @@
 
 package ru.iisaev.kotlin.aws.sdk
 
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
@@ -80,7 +78,7 @@ suspend fun String.runInAthenaAsync(config: AthenaConfig) = config.let { athena 
 }
 
 @ExperimentalCoroutinesApi
-suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: suspend (List<Datum>) -> T): Flow<T> = config.let { athena ->
+suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (List<Datum>) -> T): Flow<T> = config.let { athena ->
     val string = this
     val executionId = throttle(config) {
         athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
@@ -88,10 +86,8 @@ suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: suspend (List<D
     }
     config.debug { println("Started $string") }
     throttle(config) { waitForFinish(athena, executionId) }
-    var nextToken: String? = null
-    var last = false
     config.debug { println("Finished $string") }
-    return athena.client.getQueryResults { it.queryExecutionId(executionId) }.map(mapper)
+    return athena.client.getQueryResults { it.queryExecutionId(executionId) }.map { coroutineScope { mapper(it) } }
 }
 
 @Throws(IllegalStateException::class)
