@@ -151,7 +151,7 @@ class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
         return nativeClient.putItem(builder).await().attributes()
     }
 
-    suspend fun query(builder: (QueryRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> =
+    fun query(builder: (QueryRequest.Builder) -> Unit): Flow<Map<String, AttributeValue>> =
             nativeClient.queryPaginator(builder).items().asFlow()
 
     suspend fun restoreTableFromBackup(builder: (RestoreTableFromBackupRequest.Builder) -> Unit): TableDescription {
