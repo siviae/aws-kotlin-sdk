@@ -5,7 +5,7 @@
 
     <groupId>ru.iisaev.kotlin.awssdk</groupId>
     <artifactId>parent-pom</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.1.RELEASE</version>
     <packaging>pom</packaging>
 
     <properties>
