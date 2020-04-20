@@ -27,7 +27,6 @@
         <module>s3</module>
         <module>ses</module>
         <module>sns</module>
-        <module>ec2</module>
         <module>lambda</module>
         <module>cloudwatch</module>
     </modules>

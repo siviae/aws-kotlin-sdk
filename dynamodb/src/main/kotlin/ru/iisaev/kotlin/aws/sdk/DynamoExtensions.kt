@@ -109,7 +109,7 @@ class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
         return nativeClient.getItem(builder).await().item()
     }
 
-    suspend fun listBackups(builder: (ListBackupsRequest.Builder) -> Unit = {}): Flow<BackupSummary> = flow {
+    fun listBackups(builder: (ListBackupsRequest.Builder) -> Unit = {}): Flow<BackupSummary> = flow {
         var nextToken: String? = null
         do {
             val result = nativeClient.listBackups { it.exclusiveStartBackupArn(nextToken).also(builder) }.await()
