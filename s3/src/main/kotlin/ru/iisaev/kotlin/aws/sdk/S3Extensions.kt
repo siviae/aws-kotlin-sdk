@@ -146,8 +146,9 @@ class S3AsyncKlient(val nativeClient: S3AsyncClient) {
         return nativeClient.getBucketLifecycleConfiguration(builder).await().rules() ?: emptyList()
     }
 
-    suspend fun getBucketLocation(builder: (GetBucketLocationRequest.Builder) -> Unit): BucketLocationConstraint {
-        return nativeClient.getBucketLocation(builder).await().locationConstraint()
+    suspend fun getBucketLocation(builder: (GetBucketLocationRequest.Builder) -> Unit): Region {
+        return nativeClient.getBucketLocation(builder).await().locationConstraintAsString().ifEmpty { null }?.let { Region.of(it) }
+                ?: Region.US_EAST_1
     }
 
     suspend fun getBucketLogging(builder: (GetBucketLoggingRequest.Builder) -> Unit): LoggingEnabled {
@@ -179,7 +180,15 @@ class S3AsyncKlient(val nativeClient: S3AsyncClient) {
     }
 
     suspend fun getBucketTagging(builder: (GetBucketTaggingRequest.Builder) -> Unit): Map<String, String> {
-        return nativeClient.getBucketTagging(builder).await().tagSet()?.associate { it.key() to it.value() } ?: emptyMap()
+        return try {
+            nativeClient.getBucketTagging(builder).await().tagSet()?.associate { it.key() to it.value() } ?: emptyMap()
+        } catch (e: S3Exception) {
+            if (e.awsErrorDetails().errorCode() == "NoSuchTagSet") {
+                emptyMap()
+            } else {
+                throw e
+            }
+        }
     }
 
     suspend fun getBucketVersioning(builder: (GetBucketVersioningRequest.Builder) -> Unit): GetBucketVersioningResponse {
