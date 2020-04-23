@@ -266,8 +266,8 @@ class S3AsyncKlient(val nativeClient: S3AsyncClient) {
         } while (nextToken != null)
     }.flowOn(Dispatchers.IO)
 
-    suspend fun listBuckets(builder: (ListBucketsRequest.Builder) -> Unit = {}): ListBucketsResponse {
-        return nativeClient.listBuckets(builder).await()
+    suspend fun listBuckets(builder: (ListBucketsRequest.Builder) -> Unit = {}): List<Bucket> {
+        return nativeClient.listBuckets(builder).await().buckets() ?: emptyList()
     }
 
     fun listMultipartUploads(builder: (ListMultipartUploadsRequest.Builder) -> Unit): Flow<ListMultipartUploadsResponse> {
