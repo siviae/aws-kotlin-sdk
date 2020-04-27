@@ -7,14 +7,19 @@
         <artifactId>parent-pom</artifactId>
         <version>0.0.2-SNAPSHOT</version>
     </parent>
-    <artifactId>ses</artifactId>
+    <artifactId>kinesis</artifactId>
     <packaging>jar</packaging>
     <dependencies>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
-            <artifactId>ses</artifactId>
+            <artifactId>kinesis</artifactId>
             <version>${aws.sdk.version}</version>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jetbrains.kotlinx</groupId>
+            <artifactId>kotlinx-coroutines-reactive</artifactId>
+            <version>${kotlinx.coroutines.reactive.version}</version>
         </dependency>
     </dependencies>
 </project>

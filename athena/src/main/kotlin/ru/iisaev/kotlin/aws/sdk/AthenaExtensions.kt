@@ -21,20 +21,7 @@ import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
 
-//TODO merge with AthenaAsyncKlient
-data class AthenaConfig(
-        val client: AthenaAsyncKlient,
-        val workGroup: String,
-        val queryBatchSize: Int = 1000,
-        val waitDelaySeed: Long = 500L,
-        val waitDelayFunction: (Long) -> Long = { it * 2 },
-        val throttleDelaySeed: Long = 200L,
-        val throttleDelayFunction: (Long) -> Long = { it * 2 },
-        val maxThrottles: Int = Int.MAX_VALUE,
-        val debugMode: Boolean = false
-)
-
-private fun AthenaConfig.debug(action: () -> Unit) {
+private fun AthenaAsyncKlient.debug(action: () -> Unit) {
     if (debugMode) {
         action()
     }
@@ -43,8 +30,8 @@ private fun AthenaConfig.debug(action: () -> Unit) {
 private val mutex = Mutex()
 
 //TODO shall we revise it according to Per Account API Call Quotas?
-private suspend fun <T> throttle(config: AthenaConfig,
-                                 delay: Long = config.throttleDelaySeed,
+private suspend fun <T> throttle(athena: AthenaAsyncKlient,
+                                 delay: Long = athena.throttleDelaySeed,
                                  throttled: Int = 0,
                                  action: suspend () -> T): T {
     return try {
@@ -52,18 +39,18 @@ private suspend fun <T> throttle(config: AthenaConfig,
     } catch (e: SdkServiceException) {
         if (e.isThrottlingException) {
             if (throttled > 0) {
-                config.debug { println("Throttled in mutex: $throttled") }
-                if (throttled > config.maxThrottles) {
+                athena.debug { println("Throttled in mutex: $throttled") }
+                if (throttled > athena.maxThrottles) {
                     throw IllegalStateException("Too long throttling for the query ($throttled times), try again later")
                 } else {
                     println("Caught throttling error, already exclusive, stop all athena queries for " + Duration.of(delay, ChronoUnit.MILLIS))
                     delay(delay)
-                    throttle(config, config.throttleDelayFunction(delay), throttled + 1, action)
+                    throttle(athena, athena.throttleDelayFunction(delay), throttled + 1, action)
                 }
             } else {
                 mutex.withLock {
                     delay(delay)//TODO replace with loop and make inline
-                    throttle(config, config.throttleDelayFunction(delay), throttled + 1, action)
+                    throttle(athena, athena.throttleDelayFunction(delay), throttled + 1, action)
                 }
             }
         } else {
@@ -73,36 +60,36 @@ private suspend fun <T> throttle(config: AthenaConfig,
 }
 
 
-suspend fun String.runInAthenaAsync(config: AthenaConfig) = config.let { athena ->
-    throttle(config) { athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await().queryExecutionId() }
+suspend fun String.runInAthenaAsync(client: AthenaAsyncKlient) = client.let { athena ->
+    throttle(client) { client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await().queryExecutionId()!! }
 }
 
 @ExperimentalCoroutinesApi
-suspend fun <T> String.runInAthena(config: AthenaConfig, mapper: (List<Datum>) -> T): Flow<T> = config.let { athena ->
+suspend fun <T> String.runInAthena(athena: AthenaAsyncKlient, mapper: (List<Datum>) -> T): Flow<T> = athena.let { athena ->
     val string = this
-    val executionId = throttle(config) {
-        athena.client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
+    val executionId = throttle(athena) {
+        athena.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
                 .queryExecutionId()
     }
-    config.debug { println("Started $string") }
-    throttle(config) { waitForFinish(athena, executionId) }
-    config.debug { println("Finished $string") }
-    return athena.client.getQueryResults { it.queryExecutionId(executionId) }.map { coroutineScope { mapper(it) } }
+    athena.debug { println("Started $string") }
+    throttle(athena) { waitForFinish(athena, executionId) }
+    athena.debug { println("Finished $string") }
+    return athena.getQueryResults { it.queryExecutionId(executionId) }.map { coroutineScope { mapper(it) } }
 }
 
 @Throws(IllegalStateException::class)
-suspend fun waitForFinish(config: AthenaConfig,
-                          queryExecutionId: String) = config.let { athena ->
+suspend fun waitForFinish(athena: AthenaAsyncKlient,
+                          queryExecutionId: String) = athena.let { athena ->
     var status = QueryExecutionStatus.builder().state(QueryExecutionState.QUEUED).build()
     val delaySeq = generateSequence(athena.waitDelaySeed, athena.waitDelayFunction).iterator()
     var firstTime = true
     while (status.state() == QueryExecutionState.RUNNING || status.state() == QueryExecutionState.QUEUED) {
         val delay = delaySeq.next()
         if (!firstTime) {
-            config.debug { println("Query $queryExecutionId is still running, waiting for ${Duration.ofMillis(delay)}") }
+            athena.debug { println("Query $queryExecutionId is still running, waiting for ${Duration.ofMillis(delay)}") }
         }
         delay(delay)
-        val future = athena.client.nativeClient.getQueryExecution { it.queryExecutionId(queryExecutionId) }
+        val future = athena.nativeClient.getQueryExecution { it.queryExecutionId(queryExecutionId) }
         status = future.await().queryExecution().status()
         firstTime = false
     }
@@ -111,7 +98,15 @@ suspend fun waitForFinish(config: AthenaConfig,
     }
 }
 
-class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient) {
+class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient,
+                        val workGroup: String,
+                        val waitDelaySeed: Long = 500L,
+                        val waitDelayFunction: (Long) -> Long = { it * 2 },
+                        val throttleDelaySeed: Long = 200L,
+                        val throttleDelayFunction: (Long) -> Long = { it * 2 },
+                        val maxThrottles: Int = Int.MAX_VALUE,
+                        val debugMode: Boolean = false) {
+
     suspend fun batchGetNamedQuery(builder: (BatchGetNamedQueryRequest.Builder) -> Unit): BatchGetNamedQueryResponse {
         return nativeClient.batchGetNamedQuery(builder).await()
     }
@@ -205,8 +200,15 @@ class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient) {
 
 private val clientByRegion by lazy { ConcurrentHashMap<Region, AthenaAsyncKlient>() }
 fun SdkAsyncHttpClient.athena(region: Region,
+                              workGroup: String,
+                              waitDelaySeed: Long = 500L,
+                              waitDelayFunction: (Long) -> Long = { it * 2 },
+                              throttleDelaySeed: Long = 200L,
+                              throttleDelayFunction: (Long) -> Long = { it * 2 },
+                              maxThrottles: Int = Int.MAX_VALUE,
+                              debugMode: Boolean = false,
                               builder: (AthenaAsyncClientBuilder) -> Unit = {}) =
         clientByRegion.computeIfAbsent(region) {
             AthenaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { AthenaAsyncKlient(it) }
+                    .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }
         }

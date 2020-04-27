@@ -25,10 +25,11 @@
         <module>athena</module>
         <module>dynamodb</module>
         <module>s3</module>
-        <module>ses</module>
         <module>sns</module>
         <module>lambda</module>
         <module>cloudwatch</module>
+        <module>kinesis</module>
+        <module>sqs</module>
     </modules>
 
     <dependencies>
