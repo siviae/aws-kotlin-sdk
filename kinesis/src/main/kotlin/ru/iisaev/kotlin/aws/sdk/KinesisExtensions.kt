@@ -14,7 +14,6 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClientBuilder
 import software.amazon.awssdk.services.kinesis.model.*
-import java.util.concurrent.ConcurrentHashMap
 
 @ExperimentalCoroutinesApi
 class KinesisAsyncKlient(val nativeClient: KinesisAsyncClient) {
@@ -145,12 +144,12 @@ class KinesisAsyncKlient(val nativeClient: KinesisAsyncClient) {
     }
 }
 
-private val clientByRegion by lazy { ConcurrentHashMap<Region, KinesisAsyncKlient>() }
-
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.lambda(region: Region,
                               builder: (KinesisAsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            KinesisAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { KinesisAsyncKlient(it) }
-        }
+        KinesisAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .also(builder)
+                .build()
+                .let { KinesisAsyncKlient(it) }

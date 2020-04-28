@@ -390,13 +390,8 @@ class S3AsyncKlient(val nativeClient: S3AsyncClient) {
     }
 }
 
-
-private val clientByRegion by lazy { ConcurrentHashMap<Region, S3AsyncKlient>() }
-
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.s3(region: Region,
                           builder: (S3AsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            S3AsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { S3AsyncKlient(it) }
-        }
+        S3AsyncClient.builder().httpClient(this).region(region).also(builder).build()
+                .let { S3AsyncKlient(it) }

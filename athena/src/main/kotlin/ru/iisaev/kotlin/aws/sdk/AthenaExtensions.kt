@@ -2,11 +2,11 @@
 
 package ru.iisaev.kotlin.aws.sdk
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Mutex
@@ -19,9 +19,9 @@ import software.amazon.awssdk.services.athena.AthenaAsyncClientBuilder
 import software.amazon.awssdk.services.athena.model.*
 import java.time.Duration
 import java.time.temporal.ChronoUnit
-import java.util.concurrent.ConcurrentHashMap
 
-private fun AthenaAsyncKlient.debug(action: () -> Unit) {
+@PublishedApi
+internal fun AthenaAsyncKlient.debug(action: () -> Unit) {
     if (debugMode) {
         action()
     }
@@ -30,10 +30,11 @@ private fun AthenaAsyncKlient.debug(action: () -> Unit) {
 private val mutex = Mutex()
 
 //TODO shall we revise it according to Per Account API Call Quotas?
-private suspend fun <T> throttle(athena: AthenaAsyncKlient,
-                                 delay: Long = athena.throttleDelaySeed,
-                                 throttled: Int = 0,
-                                 action: suspend () -> T): T {
+@PublishedApi
+internal suspend fun <T> throttle(athena: AthenaAsyncKlient,
+                                  delay: Long = athena.throttleDelaySeed,
+                                  throttled: Int = 0,
+                                  action: suspend () -> T): T {
     return try {
         action()
     } catch (e: SdkServiceException) {
@@ -60,12 +61,13 @@ private suspend fun <T> throttle(athena: AthenaAsyncKlient,
 }
 
 
-suspend fun String.runInAthenaAsync(client: AthenaAsyncKlient) = client.let { athena ->
+suspend fun String.startQuery(client: AthenaAsyncKlient) = client.let { athena ->
     throttle(client) { client.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(this) }.await().queryExecutionId()!! }
 }
 
 @ExperimentalCoroutinesApi
-suspend fun <T> String.runInAthena(athena: AthenaAsyncKlient, mapper: (List<Datum>) -> T): Flow<T> = athena.let { athena ->
+suspend inline fun <T> String.query(athena: AthenaAsyncKlient,
+                                    crossinline mapper: (List<Datum>) -> T): Flow<T> {
     val string = this
     val executionId = throttle(athena) {
         athena.nativeClient.startQueryExecution { it.workGroup(athena.workGroup).queryString(string) }.await()
@@ -77,9 +79,38 @@ suspend fun <T> String.runInAthena(athena: AthenaAsyncKlient, mapper: (List<Datu
     return athena.getQueryResults { it.queryExecutionId(executionId) }.map { coroutineScope { mapper(it) } }
 }
 
+@ExperimentalCoroutinesApi
+suspend fun String.query(athena: AthenaAsyncKlient): Flow<Map<String, String?>> = flow {
+    lateinit var paramNames: List<String>
+    query(athena) { it }.collectIndexed { i, data ->
+        if (i == 0) {
+            paramNames = data.map { it.varCharValue() }
+        } else {
+            emit(data.withIndex()
+                    .associate { (index, value) -> paramNames[index] to value.varCharValue() })
+        }
+
+    }
+}.flowOn(Dispatchers.IO)
+
+@ExperimentalCoroutinesApi
+suspend fun String.queryForList(athena: AthenaAsyncKlient): Flow<String?> =
+        query(athena) { it[0].varCharValue() }
+
+@ExperimentalCoroutinesApi
+suspend fun String.queryForValue(athena: AthenaAsyncKlient): String? =
+        query(athena) { it }.drop(1).single()[0].varCharValue()
+
+@ExperimentalCoroutinesApi
+suspend fun String.queryForObject(athena: AthenaAsyncKlient): Map<String, String?> =
+        query(athena).single()
+
+@ExperimentalCoroutinesApi
+suspend fun String.alter(athena: AthenaAsyncKlient) = query(athena){it}.collect()
+
 @Throws(IllegalStateException::class)
 suspend fun waitForFinish(athena: AthenaAsyncKlient,
-                          queryExecutionId: String) = athena.let { athena ->
+                          queryExecutionId: String) {
     var status = QueryExecutionStatus.builder().state(QueryExecutionState.QUEUED).build()
     val delaySeq = generateSequence(athena.waitDelaySeed, athena.waitDelayFunction).iterator()
     var firstTime = true
@@ -198,7 +229,6 @@ class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient,
     }
 }
 
-private val clientByRegion by lazy { ConcurrentHashMap<Region, AthenaAsyncKlient>() }
 fun SdkAsyncHttpClient.athena(region: Region,
                               workGroup: String,
                               waitDelaySeed: Long = 500L,
@@ -208,7 +238,5 @@ fun SdkAsyncHttpClient.athena(region: Region,
                               maxThrottles: Int = Int.MAX_VALUE,
                               debugMode: Boolean = false,
                               builder: (AthenaAsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            AthenaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }
-        }
+        AthenaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+                .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }

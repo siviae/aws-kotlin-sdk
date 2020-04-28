@@ -151,10 +151,7 @@ class SnsAsyncKlient(val nativeClient: SnsAsyncClient) {
     }
 }
 
-private val clientByRegion by lazy { ConcurrentHashMap<Region, SnsAsyncKlient>() }
 fun SdkAsyncHttpClient.sns(region: Region,
                            builder: (SnsAsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            SnsAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { SnsAsyncKlient(it) }
-        }
+        SnsAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+                .let { SnsAsyncKlient(it) }

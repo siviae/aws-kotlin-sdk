@@ -208,12 +208,8 @@ class LambdaAsyncKlient(val nativeClient: LambdaAsyncClient) {
     }
 }
 
-private val clientByRegion by lazy { ConcurrentHashMap<Region, LambdaAsyncKlient>() }
-
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.lambda(region: Region,
                               builder: (LambdaAsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            LambdaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { LambdaAsyncKlient(it) }
-        }
+        LambdaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+                .let { LambdaAsyncKlient(it) }

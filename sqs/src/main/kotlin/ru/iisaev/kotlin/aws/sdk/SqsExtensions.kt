@@ -95,12 +95,8 @@ class SqsAsyncKlient(val nativeClient: SqsAsyncClient) {
     }
 }
 
-private val clientByRegion by lazy { ConcurrentHashMap<Region, SqsAsyncKlient>() }
-
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.lambda(region: Region,
                               builder: (SqsAsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            SqsAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { SqsAsyncKlient(it) }
-        }
+        SqsAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+                .let { SqsAsyncKlient(it) }

@@ -214,12 +214,8 @@ class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
     }
 }
 
-private val clientByRegion by lazy { ConcurrentHashMap<Region, DynamoDbAsyncKlient>() }
-
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.dynamoDb(region: Region,
                                 builder: (DynamoDbAsyncClientBuilder) -> Unit = {}) =
-        clientByRegion.computeIfAbsent(region) {
-            DynamoDbAsyncClient.builder().httpClient(this).region(region).also(builder).build()
-                    .let { DynamoDbAsyncKlient(it) }
-        }
+        DynamoDbAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+                .let { DynamoDbAsyncKlient(it) }
