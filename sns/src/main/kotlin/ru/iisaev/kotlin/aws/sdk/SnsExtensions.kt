@@ -8,12 +8,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.sns.SnsAsyncClient
 import software.amazon.awssdk.services.sns.SnsAsyncClientBuilder
 import software.amazon.awssdk.services.sns.model.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 
 class SnsAsyncKlient(val nativeClient: SnsAsyncClient) {
     suspend fun addPermission(builder: (AddPermissionRequest.Builder) -> Unit) {
@@ -153,5 +155,15 @@ class SnsAsyncKlient(val nativeClient: SnsAsyncClient) {
 
 fun SdkAsyncHttpClient.sns(region: Region,
                            builder: (SnsAsyncClientBuilder) -> Unit = {}) =
-        SnsAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        SnsAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { SnsAsyncKlient(it) }

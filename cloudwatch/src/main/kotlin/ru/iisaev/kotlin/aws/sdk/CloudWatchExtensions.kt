@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
@@ -16,6 +17,7 @@ import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClientBuilder
 import software.amazon.awssdk.services.cloudwatch.model.*
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
 class CloudWatchAsyncKlient(val nativeClient: CloudWatchAsyncClient) {
@@ -140,5 +142,15 @@ class CloudWatchAsyncKlient(val nativeClient: CloudWatchAsyncClient) {
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.cloudWatch(region: Region,
                                   builder: (CloudWatchAsyncClientBuilder) -> Unit = {}) =
-        CloudWatchAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        CloudWatchAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { CloudWatchAsyncKlient(it) }

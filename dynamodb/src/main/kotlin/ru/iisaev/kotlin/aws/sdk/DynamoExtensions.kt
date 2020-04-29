@@ -9,27 +9,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
 import software.amazon.awssdk.services.dynamodb.model.*
 import java.util.concurrent.ConcurrentHashMap
-
-private fun dynamoAttr(mutator: (AttributeValue.Builder) -> Unit) = AttributeValue.builder().also(mutator).build()!!
-
-fun String.asDynamoAttr() = dynamoAttr { it.s(this) }
-fun Enum<*>.asDynamoAttr() = this.name.asDynamoAttr()
-fun Number.asDynamoAttr() = dynamoAttr { it.n(this.toString()) }
-
-@JvmName("asDynamoEnumList")
-fun Iterable<Enum<*>>.asDynamoAttr() = dynamoAttr { builder -> builder.ss(this.map { it.name }.toList()) }
-
-@JvmName("asDynamoStringList")
-fun Iterable<String>.asDynamoAttr() = dynamoAttr { builder -> builder.ss(this.map { it }.toList()) }
-
-@JvmName("asDynamoNumberList")
-fun Iterable<Number>.asDynamoAttr() = dynamoAttr { builder -> builder.ns(this.map { it.toString() }.toList()) }
+import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
 class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
@@ -217,5 +204,15 @@ class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.dynamoDb(region: Region,
                                 builder: (DynamoDbAsyncClientBuilder) -> Unit = {}) =
-        DynamoDbAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        DynamoDbAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { DynamoDbAsyncKlient(it) }

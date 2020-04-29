@@ -11,6 +11,7 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.core.exception.SdkServiceException
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
@@ -19,6 +20,7 @@ import software.amazon.awssdk.services.athena.AthenaAsyncClientBuilder
 import software.amazon.awssdk.services.athena.model.*
 import java.time.Duration
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.Executor
 
 @PublishedApi
 internal fun AthenaAsyncKlient.debug(action: () -> Unit) {
@@ -238,5 +240,15 @@ fun SdkAsyncHttpClient.athena(region: Region,
                               maxThrottles: Int = Int.MAX_VALUE,
                               debugMode: Boolean = false,
                               builder: (AthenaAsyncClientBuilder) -> Unit = {}) =
-        AthenaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        AthenaAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }

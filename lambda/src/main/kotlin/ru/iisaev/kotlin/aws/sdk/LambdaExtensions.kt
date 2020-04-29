@@ -6,12 +6,14 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.lambda.LambdaAsyncClient
 import software.amazon.awssdk.services.lambda.LambdaAsyncClientBuilder
 import software.amazon.awssdk.services.lambda.model.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
 class LambdaAsyncKlient(val nativeClient: LambdaAsyncClient) {
@@ -211,5 +213,15 @@ class LambdaAsyncKlient(val nativeClient: LambdaAsyncClient) {
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.lambda(region: Region,
                               builder: (LambdaAsyncClientBuilder) -> Unit = {}) =
-        LambdaAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        LambdaAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { LambdaAsyncKlient(it) }

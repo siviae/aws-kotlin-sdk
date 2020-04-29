@@ -4,12 +4,15 @@ package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.future.await
+import software.amazon.awssdk.awscore.client.builder.AwsAsyncClientBuilder
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder
 import software.amazon.awssdk.services.sqs.model.*
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
 class SqsAsyncKlient(val nativeClient: SqsAsyncClient) {
@@ -98,5 +101,15 @@ class SqsAsyncKlient(val nativeClient: SqsAsyncClient) {
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.lambda(region: Region,
                               builder: (SqsAsyncClientBuilder) -> Unit = {}) =
-        SqsAsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        SqsAsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { SqsAsyncKlient(it) }

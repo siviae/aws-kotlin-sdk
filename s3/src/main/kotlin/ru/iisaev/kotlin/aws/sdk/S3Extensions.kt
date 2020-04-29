@@ -10,6 +10,7 @@ import kotlinx.coroutines.future.asDeferred
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.core.async.AsyncRequestBody
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
@@ -17,6 +18,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClientBuilder
 import software.amazon.awssdk.services.s3.model.*
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
 class S3AsyncKlient(val nativeClient: S3AsyncClient) {
@@ -393,5 +395,15 @@ class S3AsyncKlient(val nativeClient: S3AsyncClient) {
 @ExperimentalCoroutinesApi
 fun SdkAsyncHttpClient.s3(region: Region,
                           builder: (S3AsyncClientBuilder) -> Unit = {}) =
-        S3AsyncClient.builder().httpClient(this).region(region).also(builder).build()
+        S3AsyncClient.builder()
+                .httpClient(this)
+                .region(region)
+                .asyncConfiguration {
+                    it.advancedOption(
+                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                            Executor { runnable -> runnable.run() }
+                    )
+                }
+                .also(builder)
+                .build()
                 .let { S3AsyncKlient(it) }
