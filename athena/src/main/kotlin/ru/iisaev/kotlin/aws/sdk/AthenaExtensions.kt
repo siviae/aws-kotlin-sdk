@@ -108,7 +108,7 @@ suspend fun String.queryForObject(athena: AthenaAsyncKlient): Map<String, String
         query(athena).single()
 
 @ExperimentalCoroutinesApi
-suspend fun String.alter(athena: AthenaAsyncKlient) = query(athena){it}.collect()
+suspend fun String.alter(athena: AthenaAsyncKlient) = query(athena) { it }.collect()
 
 @Throws(IllegalStateException::class)
 suspend fun waitForFinish(athena: AthenaAsyncKlient,

@@ -5,7 +5,7 @@
     <parent>
         <groupId>ru.iisaev.kotlin.awssdk</groupId>
         <artifactId>parent-pom</artifactId>
-        <version>0.0.4.RELEASE</version>
+        <version>0.0.5-SNAPSHOT</version>
     </parent>
     <artifactId>cloudwatch</artifactId>
     <packaging>jar</packaging>
@@ -19,7 +19,7 @@
         <dependency>
             <groupId>org.jetbrains.kotlinx</groupId>
             <artifactId>kotlinx-coroutines-reactive</artifactId>
-            <version>${kotlinx.coroutines.reactive.version}</version>
+            <version>${kotlinx.coroutines.version}</version>
         </dependency>
     </dependencies>
 </project>

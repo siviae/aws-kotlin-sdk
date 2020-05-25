@@ -15,7 +15,6 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClientBuilder
 import software.amazon.awssdk.services.dynamodb.model.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi

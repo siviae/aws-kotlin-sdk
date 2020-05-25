@@ -12,7 +12,6 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.lambda.LambdaAsyncClient
 import software.amazon.awssdk.services.lambda.LambdaAsyncClientBuilder
 import software.amazon.awssdk.services.lambda.model.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi

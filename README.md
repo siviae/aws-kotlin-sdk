@@ -20,6 +20,6 @@ The library built for usage from Kotlin code and there are no intention to make 
 TBD 
 
 ## Status
-Current library version: 0.0.4.RELEASE
+Current library version: 0.0.5-SNAPSHOT
 
 

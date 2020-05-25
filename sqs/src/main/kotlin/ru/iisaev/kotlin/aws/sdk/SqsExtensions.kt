@@ -4,14 +4,12 @@ package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.future.await
-import software.amazon.awssdk.awscore.client.builder.AwsAsyncClientBuilder
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder
 import software.amazon.awssdk.services.sqs.model.*
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
