@@ -4,7 +4,7 @@ package ru.iisaev.kotlin.aws.sdk
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.future.await
-import software.amazon.awssdk.awscore.client.builder.AwsAsyncClientBuilder
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
@@ -99,17 +99,24 @@ class SqsAsyncKlient(val nativeClient: SqsAsyncClient) {
 }
 
 @ExperimentalCoroutinesApi
-fun SdkAsyncHttpClient.lambda(region: Region,
-                              builder: (SqsAsyncClientBuilder) -> Unit = {}) =
-        SqsAsyncClient.builder()
-                .httpClient(this)
-                .region(region)
-                .asyncConfiguration {
-                    it.advancedOption(
-                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
-                            Executor { runnable -> runnable.run() }
-                    )
-                }
-                .also(builder)
-                .build()
-                .let { SqsAsyncKlient(it) }
+private val clientCache = ConcurrentHashMap<Region, SqsAsyncKlient>(Region.regions().size)
+
+@ExperimentalCoroutinesApi
+fun SdkAsyncHttpClient.lambda(
+        region: Region,
+        builder: (SqsAsyncClientBuilder) -> Unit = {}
+) = clientCache.computeIfAbsent(region) {
+    SqsAsyncClient.builder()
+            .httpClient(this)
+            .region(region)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .asyncConfiguration {
+                it.advancedOption(
+                        SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                        Executor { runnable -> runnable.run() }
+                )
+            }
+            .also(builder)
+            .build()
+            .let { SqsAsyncKlient(it) }
+}

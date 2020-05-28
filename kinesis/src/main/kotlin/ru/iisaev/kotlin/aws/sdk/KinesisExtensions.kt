@@ -9,12 +9,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClient
 import software.amazon.awssdk.services.kinesis.KinesisAsyncClientBuilder
 import software.amazon.awssdk.services.kinesis.model.*
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 @ExperimentalCoroutinesApi
@@ -147,17 +149,24 @@ class KinesisAsyncKlient(val nativeClient: KinesisAsyncClient) {
 }
 
 @ExperimentalCoroutinesApi
-fun SdkAsyncHttpClient.lambda(region: Region,
-                              builder: (KinesisAsyncClientBuilder) -> Unit = {}) =
-        KinesisAsyncClient.builder()
-                .httpClient(this)
-                .region(region)
-                .asyncConfiguration {
-                    it.advancedOption(
-                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
-                            Executor { runnable -> runnable.run() }
-                    )
-                }
-                .also(builder)
-                .build()
-                .let { KinesisAsyncKlient(it) }
+private val clientCache = ConcurrentHashMap<Region, KinesisAsyncKlient>(Region.regions().size)
+
+@ExperimentalCoroutinesApi
+fun SdkAsyncHttpClient.lambda(
+        region: Region,
+        builder: (KinesisAsyncClientBuilder) -> Unit = {}
+) = clientCache.computeIfAbsent(region) {
+    KinesisAsyncClient.builder()
+            .httpClient(this)
+            .region(region)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .asyncConfiguration {
+                it.advancedOption(
+                        SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                        Executor { runnable -> runnable.run() }
+                )
+            }
+            .also(builder)
+            .build()
+            .let { KinesisAsyncKlient(it) }
+}

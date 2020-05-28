@@ -11,6 +11,7 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.core.exception.SdkServiceException
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
@@ -20,6 +21,7 @@ import software.amazon.awssdk.services.athena.AthenaAsyncClientBuilder
 import software.amazon.awssdk.services.athena.model.*
 import java.time.Duration
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 @PublishedApi
@@ -108,7 +110,7 @@ suspend fun String.queryForObject(athena: AthenaAsyncKlient): Map<String, String
         query(athena).single()
 
 @ExperimentalCoroutinesApi
-suspend fun String.alter(athena: AthenaAsyncKlient) = query(athena){it}.collect()
+suspend fun String.alter(athena: AthenaAsyncKlient) = query(athena) { it }.collect()
 
 @Throws(IllegalStateException::class)
 suspend fun waitForFinish(athena: AthenaAsyncKlient,
@@ -231,24 +233,33 @@ class AthenaAsyncKlient(val nativeClient: AthenaAsyncClient,
     }
 }
 
-fun SdkAsyncHttpClient.athena(region: Region,
-                              workGroup: String,
-                              waitDelaySeed: Long = 500L,
-                              waitDelayFunction: (Long) -> Long = { it * 2 },
-                              throttleDelaySeed: Long = 200L,
-                              throttleDelayFunction: (Long) -> Long = { it * 2 },
-                              maxThrottles: Int = Int.MAX_VALUE,
-                              debugMode: Boolean = false,
-                              builder: (AthenaAsyncClientBuilder) -> Unit = {}) =
-        AthenaAsyncClient.builder()
-                .httpClient(this)
-                .region(region)
-                .asyncConfiguration {
-                    it.advancedOption(
-                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
-                            Executor { runnable -> runnable.run() }
-                    )
-                }
-                .also(builder)
-                .build()
-                .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }
+
+@ExperimentalCoroutinesApi
+private val clientCache = ConcurrentHashMap<Region, AthenaAsyncKlient>(Region.regions().size)
+
+@ExperimentalCoroutinesApi
+fun SdkAsyncHttpClient.athena(
+        region: Region,
+        workGroup: String,
+        waitDelaySeed: Long = 500L,
+        waitDelayFunction: (Long) -> Long = { it * 2 },
+        throttleDelaySeed: Long = 200L,
+        throttleDelayFunction: (Long) -> Long = { it * 2 },
+        maxThrottles: Int = Int.MAX_VALUE,
+        debugMode: Boolean = false,
+        builder: (AthenaAsyncClientBuilder) -> Unit = {}
+) = clientCache.computeIfAbsent(region) {
+    AthenaAsyncClient.builder()
+            .httpClient(this)
+            .region(region)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .asyncConfiguration {
+                it.advancedOption(
+                        SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                        Executor { runnable -> runnable.run() }
+                )
+            }
+            .also(builder)
+            .build()
+            .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }
+}

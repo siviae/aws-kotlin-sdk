@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
@@ -201,18 +202,26 @@ class DynamoDbAsyncKlient(val nativeClient: DynamoDbAsyncClient) {
     }
 }
 
+
 @ExperimentalCoroutinesApi
-fun SdkAsyncHttpClient.dynamoDb(region: Region,
-                                builder: (DynamoDbAsyncClientBuilder) -> Unit = {}) =
-        DynamoDbAsyncClient.builder()
-                .httpClient(this)
-                .region(region)
-                .asyncConfiguration {
-                    it.advancedOption(
-                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
-                            Executor { runnable -> runnable.run() }
-                    )
-                }
-                .also(builder)
-                .build()
-                .let { DynamoDbAsyncKlient(it) }
+private val clientCache = ConcurrentHashMap<Region, DynamoDbAsyncKlient>(Region.regions().size)
+
+@ExperimentalCoroutinesApi
+fun SdkAsyncHttpClient.dynamoDb(
+        region: Region,
+        builder: (DynamoDbAsyncClientBuilder) -> Unit = {}
+) = clientCache.computeIfAbsent(region) {
+    DynamoDbAsyncClient.builder()
+            .httpClient(this)
+            .region(region)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .asyncConfiguration {
+                it.advancedOption(
+                        SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                        Executor { runnable -> runnable.run() }
+                )
+            }
+            .also(builder)
+            .build()
+            .let { DynamoDbAsyncKlient(it) }
+}

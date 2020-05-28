@@ -6,6 +6,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
@@ -210,18 +211,26 @@ class LambdaAsyncKlient(val nativeClient: LambdaAsyncClient) {
     }
 }
 
+
 @ExperimentalCoroutinesApi
-fun SdkAsyncHttpClient.lambda(region: Region,
-                              builder: (LambdaAsyncClientBuilder) -> Unit = {}) =
-        LambdaAsyncClient.builder()
-                .httpClient(this)
-                .region(region)
-                .asyncConfiguration {
-                    it.advancedOption(
-                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
-                            Executor { runnable -> runnable.run() }
-                    )
-                }
-                .also(builder)
-                .build()
-                .let { LambdaAsyncKlient(it) }
+private val clientCache = ConcurrentHashMap<Region, LambdaAsyncKlient>(Region.regions().size)
+
+@ExperimentalCoroutinesApi
+fun SdkAsyncHttpClient.lambda(
+        region: Region,
+        builder: (LambdaAsyncClientBuilder) -> Unit = {}
+) = clientCache.computeIfAbsent(region) {
+    LambdaAsyncClient.builder()
+            .httpClient(this)
+            .region(region)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .asyncConfiguration {
+                it.advancedOption(
+                        SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                        Executor { runnable -> runnable.run() }
+                )
+            }
+            .also(builder)
+            .build()
+            .let { LambdaAsyncKlient(it) }
+}

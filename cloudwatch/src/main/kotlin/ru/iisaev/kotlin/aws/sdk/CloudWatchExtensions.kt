@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
+import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
@@ -140,17 +141,24 @@ class CloudWatchAsyncKlient(val nativeClient: CloudWatchAsyncClient) {
 }
 
 @ExperimentalCoroutinesApi
-fun SdkAsyncHttpClient.cloudWatch(region: Region,
-                                  builder: (CloudWatchAsyncClientBuilder) -> Unit = {}) =
-        CloudWatchAsyncClient.builder()
-                .httpClient(this)
-                .region(region)
-                .asyncConfiguration {
-                    it.advancedOption(
-                            SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
-                            Executor { runnable -> runnable.run() }
-                    )
-                }
-                .also(builder)
-                .build()
-                .let { CloudWatchAsyncKlient(it) }
+private val clientCache = ConcurrentHashMap<Region, CloudWatchAsyncKlient>(Region.regions().size)
+
+@ExperimentalCoroutinesApi
+fun SdkAsyncHttpClient.cloudWatch(
+        region: Region,
+        builder: (CloudWatchAsyncClientBuilder) -> Unit = {}
+) = clientCache.computeIfAbsent(region) {
+    CloudWatchAsyncClient.builder()
+            .httpClient(this)
+            .region(region)
+            .credentialsProvider(EnvironmentVariableCredentialsProvider.create())
+            .asyncConfiguration {
+                it.advancedOption(
+                        SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                        Executor { runnable -> runnable.run() }
+                )
+            }
+            .also(builder)
+            .build()
+            .let { CloudWatchAsyncKlient(it) }
+}
