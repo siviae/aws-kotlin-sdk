@@ -9,12 +9,14 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.sns.SnsAsyncClient
 import software.amazon.awssdk.services.sns.SnsAsyncClientBuilder
 import software.amazon.awssdk.services.sns.model.*
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
@@ -170,6 +172,8 @@ fun SdkAsyncHttpClient.sns(
                         Executor { runnable -> runnable.run() }
                 )
             }
+            .overrideConfiguration(ClientOverrideConfiguration.builder().build())
+            .endpointOverride(URI("https://sns.${region.id()}.amazonaws.com"))
             .also(builder)
             .build()
             .let { SnsAsyncKlient(it) }

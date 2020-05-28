@@ -11,12 +11,14 @@ import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
 import software.amazon.awssdk.core.async.AsyncRequestBody
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.s3.S3AsyncClient
 import software.amazon.awssdk.services.s3.S3AsyncClientBuilder
 import software.amazon.awssdk.services.s3.model.*
+import java.net.URI
 import java.nio.file.Path
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
@@ -411,6 +413,8 @@ fun SdkAsyncHttpClient.s3(
                         Executor { runnable -> runnable.run() }
                 )
             }
+            .overrideConfiguration(ClientOverrideConfiguration.builder().build())
+            .endpointOverride(URI("https://s3.${region.id()}.amazonaws.com"))
             .also(builder)
             .build()
             .let { S3AsyncKlient(it) }

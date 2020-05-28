@@ -12,6 +12,7 @@ import kotlinx.coroutines.reactive.asFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.core.exception.SdkServiceException
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
@@ -19,6 +20,7 @@ import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.athena.AthenaAsyncClient
 import software.amazon.awssdk.services.athena.AthenaAsyncClientBuilder
 import software.amazon.awssdk.services.athena.model.*
+import java.net.URI
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.concurrent.ConcurrentHashMap
@@ -259,6 +261,8 @@ fun SdkAsyncHttpClient.athena(
                         Executor { runnable -> runnable.run() }
                 )
             }
+            .overrideConfiguration(ClientOverrideConfiguration.builder().build())
+            .endpointOverride(URI("https://athena.${region.id()}.amazonaws.com"))
             .also(builder)
             .build()
             .let { AthenaAsyncKlient(it, workGroup, waitDelaySeed, waitDelayFunction, throttleDelaySeed, throttleDelayFunction, maxThrottles, debugMode) }

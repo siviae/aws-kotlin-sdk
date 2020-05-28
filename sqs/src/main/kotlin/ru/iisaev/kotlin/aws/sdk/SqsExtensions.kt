@@ -5,12 +5,14 @@ package ru.iisaev.kotlin.aws.sdk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.future.await
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.sqs.SqsAsyncClient
 import software.amazon.awssdk.services.sqs.SqsAsyncClientBuilder
 import software.amazon.awssdk.services.sqs.model.*
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
@@ -116,6 +118,8 @@ fun SdkAsyncHttpClient.lambda(
                         Executor { runnable -> runnable.run() }
                 )
             }
+            .overrideConfiguration(ClientOverrideConfiguration.builder().build())
+            .endpointOverride(URI("https://sqs.${region.id()}.amazonaws.com"))
             .also(builder)
             .build()
             .let { SqsAsyncKlient(it) }

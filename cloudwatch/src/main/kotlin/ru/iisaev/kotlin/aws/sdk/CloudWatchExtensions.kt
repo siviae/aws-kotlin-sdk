@@ -10,12 +10,14 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient
 import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClientBuilder
 import software.amazon.awssdk.services.cloudwatch.model.*
+import java.net.URI
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
@@ -158,6 +160,8 @@ fun SdkAsyncHttpClient.cloudWatch(
                         Executor { runnable -> runnable.run() }
                 )
             }
+            .overrideConfiguration(ClientOverrideConfiguration.builder().build())
+            .endpointOverride(URI("https://monitoring.${region.id()}.amazonaws.com"))
             .also(builder)
             .build()
             .let { CloudWatchAsyncKlient(it) }

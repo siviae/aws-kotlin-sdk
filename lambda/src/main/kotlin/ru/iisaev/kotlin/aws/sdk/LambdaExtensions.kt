@@ -7,12 +7,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.reactive.asFlow
 import software.amazon.awssdk.auth.credentials.EnvironmentVariableCredentialsProvider
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
 import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient
 import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.lambda.LambdaAsyncClient
 import software.amazon.awssdk.services.lambda.LambdaAsyncClientBuilder
 import software.amazon.awssdk.services.lambda.model.*
+import java.net.URI
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
@@ -230,6 +232,8 @@ fun SdkAsyncHttpClient.lambda(
                         Executor { runnable -> runnable.run() }
                 )
             }
+            .overrideConfiguration(ClientOverrideConfiguration.builder().build())
+            .endpointOverride(URI("https://lambda.${region.id()}.amazonaws.com"))
             .also(builder)
             .build()
             .let { LambdaAsyncKlient(it) }
